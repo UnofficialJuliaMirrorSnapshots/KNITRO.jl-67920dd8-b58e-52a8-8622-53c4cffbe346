@@ -29,70 +29,35 @@ any problem with this interface or the solver.*
 MathOptInterface Interface
 ==========================
 
-**Note: MathOptInterface works only with the new Knitro's `KN` API which requires Knitro >= `v11.0`.**
-
 KNITRO.jl now supports [MathOptInterface](https://github.com/JuliaOpt/MathOptInterface.jl)
-and [JuMP 0.19](https://github.com/JuliaOpt/JuMP.jl).
+and [JuMP 0.19](https://github.com/JuliaOpt/JuMP.jl). The `MathProgBase` interface has been deprecated. 
+
+ 
+Here's an example showcasing various features. 
 
 ```julia
 using JuMP, KNITRO
+m = Model(with_optimizer(KNITRO.Optimizer, honorbnds = 1, outlev = 1, algorithm = 4)) # (1)
+@variable(m, x, start = 1.2) # (2)
+@variable(m, y)
+@variable(m, z)
+@variable(m, 4.0 <= u <= 4.0) # (3)
 
-model = with_optimizer(KNITRO.Optimizer, outlev=3)
+mysquare(x) = x^2 
+register(m, :mysquare, 1, mysquare, autodiff = true) # (4)
 
+@NLobjective(m, Min, mysquare(1 - x) + 100 * (y - x^2)^2 + u) 
+@constraint(m, z == x + y)
+
+optimize!(m)
+(value(x), value(y), value(z), value(u), objective_value(m), termination_status(m)) # (5)
 ```
 
-
-MathProgBase Interface
-======================
-
-**Note: MathProgBase works only with the old Knitro's `KTR` API.**
-
-KNITRO.jl implements the solver-independent
-[MathProgBase](https://github.com/JuliaOpt/MathProgBase.jl) interface, and so
-can be used within modeling software like [JuMP](https://github.com/JuliaOpt/JuMP.jl).
-
-The solver object is called `KnitroSolver`. All options listed in the
-[Artelys Knitro documentation](https://www.artelys.com/tools/knitro_doc/3_referenceManual/userOptions.html)
-may be passed directly. For example, you can run all algorithms by saying
-`KnitroSolver(KTR_PARAM_ALG=KTR_ALG_MULTI)`, and here is a formulation
-modelled using [JuMP.jl](https://github.com/JuliaOpt/JuMP.jl) that specifies
-some non-default option settings:
-
-```julia
-using KNITRO, JuMP
-
-## Solve test problem 1 (Synthesis of processing system) in
- #  M. Duran & I.E. Grossmann, "An outer approximation algorithm for
- #  a class of mixed integer nonlinear programs", Mathematical
- #  Programming 36, pp. 307-339, 1986.  The problem also appears as
- #  problem synthes1 in the MacMINLP test set.
-
-m = Model(solver=KnitroSolver(mip_method = KTR_MIP_METHOD_BB,
-                              algorithm = KTR_ALG_ACT_CG,
-                              outmode = KTR_OUTMODE_SCREEN,
-                              KTR_PARAM_OUTLEV = KTR_OUTLEV_ALL,
-                              KTR_PARAM_MIP_OUTINTERVAL = 1,
-                              KTR_PARAM_MIP_MAXNODES = 10000,
-                              KTR_PARAM_HESSIAN_NO_F = KTR_HESSIAN_NO_F_ALLOW))
-x_U = [2,2,1]
-@variable(m, x_U[i] >= x[i=1:3] >= 0)
-@variable(m, y[4:6], Bin)
-
-@NLobjective(m, Min, 10 + 10*x[1] - 7*x[3] + 5*y[4] + 6*y[5] + 8*y[6] - 18*log(x[2]+1) - 19.2*log(x[1]-x[2]+1))
-@NLconstraints(m, begin
-    0.8*log(x[2] + 1) + 0.96*log(x[1] - x[2] + 1) - 0.8*x[3] >= 0
-    log(x[2] + 1) + 1.2*log(x[1] - x[2] + 1) - x[3] - 2*y[6] >= -2
-    x[2] - x[1] <= 0
-    x[2] - 2*y[4] <= 0
-    x[1] - x[2] - 2*y[5] <= 0
-    y[4] + y[5] <= 1
-end)
-solve(m)
-```
-
-**NB: The MathProgBase interface is bound to be deprecated. Please use
-MathOptInterface instead.**
-
+1. Setting `KNITRO` options. 
+2. Setting initial conditions on variables. 
+3. Setting box constraints on variables.
+4. Registering a user-defined function for use in the problem. 
+5. Querying various results from the solver. 
 
 Low-level wrapper
 =================
